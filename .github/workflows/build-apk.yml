@@ -32,7 +32,8 @@ jobs:
       - name: Build APK with Flet
         run: |
           # El comando flet build apk empaqueta el script app_flet.py
-          flet build apk app_flet.py --project AutoSRT --description "Aplicación para relevamiento SRT 900/15"
+          run: flet build apk
+          #flet build apk app_flet.py --project AutoSRT --description "Aplicación para relevamiento SRT 900/15"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
