@@ -1,0 +1,18 @@
+# Entornos virtuales
+.venv/
+venv/
+env/
+.env
+
+# Archivos de caché de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Archivos generados (para no subir reportes de clientes a GitHub público)
+Protocolo_SRT_Generado.xlsx
+*.xlsx
+!Mediciones 2026.xlsx  # Excepto la plantilla base que sí necesitamos subir
+
+# Streamlit
+.streamlit/
