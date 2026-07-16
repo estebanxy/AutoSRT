@@ -22,7 +22,7 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install flet=0.28.3 openpyxl
+          pip install flet openpyxl
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
