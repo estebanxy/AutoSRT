@@ -4,8 +4,6 @@ from excel_builder import generar_protocolo
 def main(page: ft.Page):
     page.title = "AutoSRT 900/15"
     page.theme_mode = ft.ThemeMode.LIGHT
-    page.window_width = 400
-    page.window_height = 800
     page.scroll = ft.ScrollMode.AUTO
 
     # ================= ESTADO DE LA APLICACIÓN =================
