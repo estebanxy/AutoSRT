@@ -1,4 +1,2 @@
-
 openpyxl==3.1.2
-customtkinter==5.2.2
 flet==0.28.3
