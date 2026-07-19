@@ -1,10 +1,36 @@
 import flet as ft
-from excel_builder import generar_protocolo
+import traceback
+
+# Import defensivo: en Android, openpyxl puede fallar al cargar.
+# Si falla, la app muestra el error en pantalla en vez de pantalla negra.
+try:
+    from excel_builder import generar_protocolo
+    _excel_disponible = True
+    _excel_error = None
+except Exception as _e:
+    _excel_disponible = False
+    _excel_error = traceback.format_exc()
 
 def main(page: ft.Page):
     page.title = "AutoSRT 900/15"
     page.theme_mode = ft.ThemeMode.LIGHT
     page.scroll = ft.ScrollMode.AUTO
+
+    # Si openpyxl no pudo cargarse, mostrar el error en pantalla
+    if not _excel_disponible:
+        page.add(
+            ft.Container(
+                content=ft.Column([
+                    ft.Icon(ft.icons.ERROR, color=ft.colors.RED, size=48),
+                    ft.Text("Error al iniciar la aplicación", size=20, weight=ft.FontWeight.BOLD, color=ft.colors.RED),
+                    ft.Text("No se pudo cargar el módulo de generación de Excel:", size=14),
+                    ft.Text(_excel_error, size=11, selectable=True, color=ft.colors.ORANGE_700),
+                ], scroll=ft.ScrollMode.AUTO),
+                padding=20,
+                expand=True,
+            )
+        )
+        return
 
     # ================= ESTADO DE LA APLICACIÓN =================
     state = {
