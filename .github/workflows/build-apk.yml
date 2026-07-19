@@ -37,8 +37,13 @@ jobs:
 
       - name: Build APK with Flet
         run: |
-          # El comando flet build apk empaqueta la aplicación usando main.py y desactiva Impeller para evitar el pantallazo negro en ciertas tablets
-          flet build apk --project AutoSRT --description "Aplicación para relevamiento SRT 900/15" --android-meta-data io.flutter.app.android.EnableImpeller=false
+          # NOTA: el namespace correcto es io.flutter.embedding.android (no io.flutter.app)
+          # El flag incorrecto era ignorado silenciosamente y dejaba Impeller activo,
+          # causando los errores de GPU buffer "Usage not permitted" en tablets Mediatek/Xiaomi.
+          flet build apk \
+            --project AutoSRT \
+            --description "Aplicación para relevamiento SRT 900/15" \
+            --android-meta-data io.flutter.embedding.android.EnableImpeller=false
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
