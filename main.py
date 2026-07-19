@@ -287,5 +287,7 @@ def main(page: ft.Page):
         )
     )
 
-if __name__ == "__main__":
-    ft.app(target=main)
+# ft.app debe estar a nivel de módulo (NO solo dentro de __main__)
+# En Android, Flet importa el módulo directamente sin ejecutar __main__,
+# por lo que sin esta línea Flutter nunca recibe la función main → pantalla negra.
+ft.app(target=main)
