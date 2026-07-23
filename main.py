@@ -21,10 +21,10 @@ def main(page: ft.Page):
         page.add(
             ft.Container(
                 content=ft.Column([
-                    ft.Icon(ft.icons.ERROR, color=ft.colors.RED, size=48),
-                    ft.Text("Error al iniciar la aplicación", size=20, weight=ft.FontWeight.BOLD, color=ft.colors.RED),
+                    ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED, size=48),
+                    ft.Text("Error al iniciar la aplicación", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.RED),
                     ft.Text("No se pudo cargar el módulo de generación de Excel:", size=14),
-                    ft.Text(_excel_error, size=11, selectable=True, color=ft.colors.ORANGE_700),
+                    ft.Text(_excel_error, size=11, selectable=True, color=ft.Colors.ORANGE_700),
                 ], scroll=ft.ScrollMode.AUTO),
                 padding=20,
                 expand=True,
@@ -45,36 +45,7 @@ def main(page: ft.Page):
 
     # ================= COMPONENTES COMPARTIDOS =================
     
-    def on_file_saved(e: ft.FilePickerResultEvent):
-        if e.path:
-            # e.path contiene la ruta donde el usuario eligió guardar
-            try:
-                # Armar diccionario final
-                datos_final = {
-                    "datos_cliente": state["datos_cliente"],
-                    "mediciones_pat": state["mediciones_pat"],
-                    "mediciones_diferenciales": state["mediciones_dif"],
-                    "conclusiones": {
-                        "observaciones": "Generado desde AutoSRT Móvil (Flet)",
-                        "fecha_medicion": "",
-                        "instrumento_utilizado": ""
-                    }
-                }
-                # Llamar a excel_builder
-                generar_protocolo("Mediciones 2026.xlsx", e.path, datos_final)
-                
-                snack = ft.SnackBar(ft.Text(f"¡Protocolo guardado con éxito!"), bgcolor=ft.colors.GREEN_700)
-                page.overlay.append(snack)
-                snack.open = True
-                page.update()
-            except Exception as ex:
-                snack = ft.SnackBar(ft.Text(f"Error: {str(ex)}"), bgcolor=ft.colors.RED_700)
-                page.overlay.append(snack)
-                snack.open = True
-                page.update()
 
-    file_picker = ft.FilePicker(on_result=on_file_saved)
-    page.overlay.append(file_picker)
 
     # ================= VISTAS =================
 
@@ -95,7 +66,7 @@ def main(page: ft.Page):
         label="Provincia",
         options=[ft.dropdown.Option(x) for x in ["Buenos Aires", "CABA", "Córdoba", "Santa Fe", "Mendoza", "Tucumán"]],
         value="Buenos Aires",
-        on_change=update_datos
+        on_select=update_datos
     )
     input_cont = ft.TextField(label="N° de Contrato", on_change=update_datos)
 
@@ -120,14 +91,14 @@ def main(page: ft.Page):
                 ft.ListTile(
                     title=ft.Text(f"{m['sector']} - {m['valor_ohms']}Ω"),
                     subtitle=ft.Text(f"Cond: {m['condicion_terreno']} | Esq: {m['esquema']} | Cumple: {m['cumple']}"),
-                    leading=ft.Icon(ft.icons.ELECTRIC_BOLT),
+                    leading=ft.Icon(ft.Icons.ELECTRIC_BOLT),
                 )
             )
         page.update()
 
     def add_pat(e):
         if not pat_sector.value or not pat_val.value:
-            snack = ft.SnackBar(ft.Text("Sector y Valor son obligatorios"), bgcolor=ft.colors.RED_700)
+            snack = ft.SnackBar(ft.Text("Sector y Valor son obligatorios"), bgcolor=ft.Colors.RED_700)
             page.overlay.append(snack)
             snack.open = True
             page.update()
@@ -159,8 +130,8 @@ def main(page: ft.Page):
         ft.Row([pat_cond, pat_esq]),
         ft.Row([pat_val, pat_cumple]),
         ft.Row([
-            ft.ElevatedButton("Agregar", on_click=add_pat, icon=ft.icons.ADD),
-            ft.ElevatedButton("Borrar Último", on_click=remove_pat, icon=ft.icons.DELETE, color=ft.colors.RED)
+            ft.ElevatedButton("Agregar", on_click=add_pat, icon=ft.Icons.ADD),
+            ft.ElevatedButton("Borrar Último", on_click=remove_pat, icon=ft.Icons.DELETE, color=ft.Colors.RED)
         ]),
         ft.Divider(),
         ft.Text("Registros:", weight=ft.FontWeight.BOLD),
@@ -183,14 +154,14 @@ def main(page: ft.Page):
                 ft.ListTile(
                     title=ft.Text(f"{m['sector']} - {m['tiempo_disparo_ms']}ms"),
                     subtitle=ft.Text(f"Marca: {m['marca']} | Sens: {m['corriente_fuga_ma']}mA | Cumple: {m['cumple']}"),
-                    leading=ft.Icon(ft.icons.SHIELD),
+                    leading=ft.Icon(ft.Icons.SHIELD),
                 )
             )
         page.update()
 
     def add_dif(e):
         if not dif_sec.value or not dif_tiempo.value:
-            snack = ft.SnackBar(ft.Text("Ubicación y Tiempo son obligatorios"), bgcolor=ft.colors.RED_700)
+            snack = ft.SnackBar(ft.Text("Ubicación y Tiempo son obligatorios"), bgcolor=ft.Colors.RED_700)
             page.overlay.append(snack)
             snack.open = True
             page.update()
@@ -221,8 +192,8 @@ def main(page: ft.Page):
         ft.Row([dif_sens, dif_tiempo]),
         dif_cumple,
         ft.Row([
-            ft.ElevatedButton("Agregar", on_click=add_dif, icon=ft.icons.ADD),
-            ft.ElevatedButton("Borrar Último", on_click=remove_dif, icon=ft.icons.DELETE, color=ft.colors.RED)
+            ft.ElevatedButton("Agregar", on_click=add_dif, icon=ft.Icons.ADD),
+            ft.ElevatedButton("Borrar Último", on_click=remove_dif, icon=ft.Icons.DELETE, color=ft.Colors.RED)
         ]),
         ft.Divider(),
         ft.Text("Registros:", weight=ft.FontWeight.BOLD),
@@ -230,14 +201,40 @@ def main(page: ft.Page):
     ], visible=False)
 
     # --- Vista: Reporte ---
-    def guardar_excel(e):
+    async def guardar_excel(e):
         # Al presionar, abre el diálogo para elegir dónde guardar
-        file_picker.save_file(
+        fp = ft.FilePicker()
+        path = await fp.save_file(
             dialog_title="Guardar Protocolo SRT",
             file_name="Protocolo_SRT_Generado.xlsx",
             file_type=ft.FilePickerFileType.CUSTOM,
             allowed_extensions=["xlsx"]
         )
+        if path:
+            try:
+                # Armar diccionario final
+                datos_final = {
+                    "datos_cliente": state["datos_cliente"],
+                    "mediciones_pat": state["mediciones_pat"],
+                    "mediciones_diferenciales": state["mediciones_dif"],
+                    "conclusiones": {
+                        "observaciones": "Generado desde AutoSRT Móvil (Flet)",
+                        "fecha_medicion": "",
+                        "instrumento_utilizado": ""
+                    }
+                }
+                # Llamar a excel_builder
+                generar_protocolo("Mediciones 2026.xlsx", path, datos_final)
+                
+                snack = ft.SnackBar(ft.Text(f"¡Protocolo guardado con éxito!"), bgcolor=ft.Colors.GREEN_700)
+                page.overlay.append(snack)
+                snack.open = True
+                page.update()
+            except Exception as ex:
+                snack = ft.SnackBar(ft.Text(f"Error: {str(ex)}"), bgcolor=ft.Colors.RED_700)
+                page.overlay.append(snack)
+                snack.open = True
+                page.update()
 
     view_reporte = ft.Column([
         ft.Text("Generar Excel", size=20, weight=ft.FontWeight.BOLD),
@@ -245,11 +242,11 @@ def main(page: ft.Page):
         ft.Container(height=30),
         ft.ElevatedButton(
             "Generar y Guardar",
-            icon=ft.icons.SAVE_ALT,
+            icon=ft.Icons.SAVE_ALT,
             on_click=guardar_excel,
             style=ft.ButtonStyle(
-                color=ft.colors.WHITE,
-                bgcolor=ft.colors.BLUE_700,
+                color=ft.Colors.WHITE,
+                bgcolor=ft.Colors.BLUE_700,
                 padding=20
             ),
             width=300
@@ -269,10 +266,10 @@ def main(page: ft.Page):
 
     page.navigation_bar = ft.NavigationBar(
         destinations=[
-            ft.NavigationDestination(icon=ft.icons.PERSON, label="Datos"),
-            ft.NavigationDestination(icon=ft.icons.ELECTRIC_BOLT, label="PAT"),
-            ft.NavigationDestination(icon=ft.icons.SHIELD, label="Dif"),
-            ft.NavigationDestination(icon=ft.icons.PICTURE_AS_PDF, label="Reporte"),
+            ft.NavigationBarDestination(icon=ft.Icons.PERSON, label="Datos"),
+            ft.NavigationBarDestination(icon=ft.Icons.ELECTRIC_BOLT, label="PAT"),
+            ft.NavigationBarDestination(icon=ft.Icons.SHIELD, label="Dif"),
+            ft.NavigationBarDestination(icon=ft.Icons.PICTURE_AS_PDF, label="Reporte"),
         ],
         on_change=on_nav_change,
         selected_index=0
@@ -290,4 +287,4 @@ def main(page: ft.Page):
 # ft.app debe estar a nivel de módulo (NO solo dentro de __main__)
 # En Android, Flet importa el módulo directamente sin ejecutar __main__,
 # por lo que sin esta línea Flutter nunca recibe la función main → pantalla negra.
-ft.app(target=main)
+ft.run(main)
