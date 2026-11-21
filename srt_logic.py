@@ -555,12 +555,17 @@ def generar_textos_sugeridos(datos: Dict[str, Any]) -> Dict[str, str]:
 
 def directorio_datos_app() -> Path:
     """Devuelve una carpeta escribible para guardar borrador y perfil del electricista."""
-    base = Path(__file__).resolve().parent / ".autosrt_data"
-    candidatos = [
-        base,
-        Path.home() / ".autosrt",
-        Path(tempfile.gettempdir()) / "autosrt",
-    ]
+    candidatos: List[Path] = []
+    flet_data_dir = (os.getenv("FLET_APP_STORAGE_DATA") or "").strip()
+    if flet_data_dir:
+        candidatos.append(Path(flet_data_dir) / "autosrt_data")
+    candidatos.extend(
+        [
+            Path(__file__).resolve().parent / ".autosrt_data",
+            Path.home() / ".autosrt",
+            Path(tempfile.gettempdir()) / "autosrt",
+        ]
+    )
     for carpeta in candidatos:
         try:
             carpeta.mkdir(parents=True, exist_ok=True)

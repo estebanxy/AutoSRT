@@ -5,9 +5,14 @@ import subprocess
 import sys
 import traceback
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import flet as ft
+
+try:
+    import flet_permission_handler as fph
+except Exception:
+    fph = None
 
 from srt_logic import (
     CONDICIONES_TERRENO,
@@ -282,25 +287,66 @@ def _badge(texto: str, bgcolor: Any, text_color: Any = ft.Colors.WHITE) -> ft.Co
     )
 
 
-def _directorio_salida_default() -> Path:
-    """Obtiene una carpeta de salida accesible en PC o Android."""
+_ANDROID_CANDIDATES: List[Path] = [
+    Path("/storage/emulated/0/Download/AutoSRT"),
+    Path("/storage/emulated/0/Download"),
+    Path("/sdcard/Download/AutoSRT"),
+    Path("/sdcard/Download"),
+]
+
+
+def _es_android(page: Optional[ft.Page] = None) -> bool:
+    if page is not None:
+        plat = str(getattr(page, "platform", "") or "").upper()
+        if "ANDROID" in plat:
+            return True
+        if any(x in plat for x in ("LINUX", "WINDOWS", "MACOS", "IOS")):
+            return False
+    return bool(os.environ.get("ANDROID_ROOT") or Path("/storage/emulated/0").exists())
+
+
+def _carpeta_escribible(carpeta: Path) -> bool:
+    try:
+        carpeta.mkdir(parents=True, exist_ok=True)
+        prueba = carpeta / ".autosrt_write_test"
+        prueba.write_bytes(b"ok")
+        prueba.unlink()
+        return True
+    except Exception:
+        return False
+
+
+def _resolver_directorio_salida(page: Optional[ft.Page] = None) -> Tuple[Path, bool]:
+    """
+    Resuelve la carpeta de salida y si corresponde a la carpeta pública Descargas.
+    En Android prioriza /storage/emulated/0/Download/AutoSRT; en PC prioriza Descargas/Downloads.
+    """
     base = Path(__file__).resolve().parent
-    descargas = Path.home() / "Descargas"
-    downloads = Path.home() / "Downloads"
-    for carpeta in [
-        base / "salidas",
-        descargas,
-        downloads,
-        directorio_datos_app() / "salidas",
-        base,
-    ]:
-        try:
-            carpeta.mkdir(parents=True, exist_ok=True)
-            if os.access(carpeta, os.W_OK):
-                return carpeta
-        except Exception:
-            continue
-    return base
+    if _es_android(page):
+        for carpeta in _ANDROID_CANDIDATES:
+            if _carpeta_escribible(carpeta):
+                return carpeta, True
+    else:
+        descargas = Path.home() / "Descargas"
+        downloads = Path.home() / "Downloads"
+        candidatos_pc: List[Path] = []
+        if descargas.is_dir():
+            candidatos_pc.extend([descargas / "AutoSRT", descargas])
+        if downloads.is_dir():
+            candidatos_pc.extend([downloads / "AutoSRT", downloads])
+        for carpeta in candidatos_pc:
+            if _carpeta_escribible(carpeta):
+                return carpeta, True
+
+    for fallback in (directorio_datos_app() / "salidas", base / "salidas", base):
+        if _carpeta_escribible(fallback):
+            return fallback, False
+    return base, False
+
+
+def _directorio_salida_default(page: Optional[ft.Page] = None) -> Path:
+    """Obtiene la carpeta de salida accesible en PC o Android."""
+    return _resolver_directorio_salida(page)[0]
 
 
 def _abrir_ruta_externa(page: ft.Page, ruta: Path) -> bool:
@@ -439,6 +485,37 @@ def main(page: ft.Page):
             page.overlay.append(snack)
             snack.open = True
             page.update()
+
+    ph = None
+    if _es_android(page) and fph is not None and hasattr(fph, "PermissionHandler"):
+        try:
+            ph = fph.PermissionHandler()
+            page.overlay.append(ph)
+        except Exception:
+            ph = None
+
+    def solicitar_permiso_descargas(abrir_ajustes_si_falla: bool = False) -> bool:
+        _, es_descargas = _resolver_directorio_salida(page)
+        if es_descargas:
+            return True
+        if ph is not None and hasattr(fph, "PermissionType") and hasattr(ph, "request_permission"):
+            perm_types = fph.PermissionType
+            for attr in ("MANAGE_EXTERNAL_STORAGE", "STORAGE"):
+                if hasattr(perm_types, attr):
+                    try:
+                        ph.request_permission(getattr(perm_types, attr))
+                    except Exception:
+                        pass
+                    _, es_descargas = _resolver_directorio_salida(page)
+                    if es_descargas:
+                        return True
+            if abrir_ajustes_si_falla and hasattr(ph, "open_app_settings"):
+                try:
+                    ph.open_app_settings()
+                except Exception:
+                    pass
+        _, es_descargas = _resolver_directorio_salida(page)
+        return es_descargas
 
     # ================= APP BAR & NAVIGATION BAR =================
     appbar_titulo = ft.Text("Nuevo relevamiento", size=17, weight=ft.FontWeight.BOLD)
@@ -1965,6 +2042,75 @@ def main(page: ft.Page):
             checklist_col.controls.append(
                 ft.Row([ic, ft.Text(item["texto"], size=13, expand=True)], spacing=8)
             )
+        refrescar_destino_banner()
+
+    destino_icono = ft.Icon(ft.Icons.FOLDER_OPEN, size=18)
+    destino_texto = ft.Text("", size=12.5, expand=True)
+
+    def on_habilitar_descargas(e=None):
+        ok = solicitar_permiso_descargas(abrir_ajustes_si_falla=True)
+        refrescar_destino_banner()
+        page.update()
+        if ok:
+            notificar("Carpeta Descargas habilitada")
+        else:
+            notificar(
+                "Habilitá 'Acceso a todos los archivos' en Ajustes y volvé a la app",
+                ft.Colors.AMBER_700,
+            )
+
+    btn_habilitar_descargas = ft.OutlinedButton(
+        "Habilitar Descargas",
+        icon=ft.Icons.SETTINGS,
+        on_click=on_habilitar_descargas,
+        visible=False,
+    )
+    destino_banner = ft.Container(
+        content=ft.Column(
+            [
+                ft.Row(
+                    [destino_icono, destino_texto],
+                    spacing=8,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                btn_habilitar_descargas,
+            ],
+            spacing=6,
+        ),
+        padding=_padding_sim(horizontal=10, vertical=8),
+        border_radius=8,
+        border=_borde(1, _color("OUTLINE_VARIANT", ft.Colors.GREY_400)),
+    )
+
+    def refrescar_destino_banner():
+        carpeta, es_descargas = _resolver_directorio_salida(page)
+        if es_descargas:
+            _set_icon(destino_icono, ft.Icons.CHECK_CIRCLE)
+            destino_icono.color = ft.Colors.GREEN_700
+            destino_texto.value = f"Destino: Descargas/AutoSRT ({carpeta})"
+            destino_banner.bgcolor = (
+                _color("GREEN_50", None) if page.theme_mode == ft.ThemeMode.LIGHT else None
+            )
+            destino_banner.border = _borde(1, ft.Colors.GREEN_700)
+            btn_habilitar_descargas.visible = False
+        elif _es_android(page):
+            _set_icon(destino_icono, ft.Icons.WARNING_AMBER)
+            destino_icono.color = ft.Colors.AMBER_700
+            destino_texto.value = (
+                "Sin permiso para guardar en Descargas (activá 'Acceso a todos los archivos')"
+            )
+            destino_banner.bgcolor = (
+                _color("AMBER_50", None) if page.theme_mode == ft.ThemeMode.LIGHT else None
+            )
+            destino_banner.border = _borde(1, ft.Colors.AMBER_700)
+            btn_habilitar_descargas.visible = True
+        else:
+            _set_icon(destino_icono, ft.Icons.FOLDER_OPEN)
+            destino_icono.color = ft.Colors.BLUE_700
+            destino_texto.value = f"Destino local: {carpeta}"
+            destino_banner.bgcolor = None
+            destino_banner.border = _borde(1, _color("OUTLINE_VARIANT", ft.Colors.GREY_400))
+            btn_habilitar_descargas.visible = False
 
     chk_exp_pdf = ft.Checkbox(label="Exportar PDF (.pdf) — listo para firmar/enviar", value=True)
     chk_exp_xlsx = ft.Checkbox(label="Exportar Excel (.xlsx) — plantilla SRT 900/15", value=True)
@@ -1995,7 +2141,10 @@ def main(page: ft.Page):
 
         try:
             datos_final = armar_datos_finales()
-            carpeta = _directorio_salida_default()
+            if _es_android(page) and not _resolver_directorio_salida(page)[1] and ph is not None:
+                solicitar_permiso_descargas(abrir_ajustes_si_falla=False)
+            carpeta, es_descargas = _resolver_directorio_salida(page)
+            refrescar_destino_banner()
             base = construir_nombre_archivo(
                 datos_final["datos_cliente"].get("razon_social", "Cliente"),
                 datos_final["conclusiones"].get("fecha_medicion", ""),
@@ -2029,6 +2178,30 @@ def main(page: ft.Page):
                     spacing=8,
                 )
             )
+            if es_descargas:
+                resultado_col.controls.append(
+                    ft.Text(
+                        "Guardado en Descargas (visible en Archivos / WhatsApp)",
+                        size=12,
+                        weight=ft.FontWeight.W_600,
+                        color=ft.Colors.GREEN_700,
+                    )
+                )
+            elif _es_android(page):
+                resultado_col.controls.append(
+                    ft.Text(
+                        "Se guardó en la carpeta interna porque falta el permiso 'Acceso a todos los archivos'.",
+                        size=12,
+                        color=ft.Colors.AMBER_700,
+                    )
+                )
+                resultado_col.controls.append(
+                    ft.OutlinedButton(
+                        "Habilitar Descargas",
+                        icon=ft.Icons.SETTINGS,
+                        on_click=on_habilitar_descargas,
+                    )
+                )
             for p in archivos_creados:
                 resultado_col.controls.append(ft.Text(f"• {p}", size=12, selectable=True))
 
@@ -2178,8 +2351,20 @@ def main(page: ft.Page):
         _abrir_dialogo(page, dlg)
 
     def abrir_dialogo_cargar(e=None):
-        carpeta_sal = _directorio_salida_default()
-        archivos = listar_protocolos_xlsx(carpeta_sal)
+        carpeta_sal = _directorio_salida_default(page)
+        carpeta_local = Path(__file__).resolve().parent / "salidas"
+        vistos = set()
+        archivos: List[Path] = []
+        for carpeta_busq in (carpeta_sal, carpeta_local):
+            for p in listar_protocolos_xlsx(carpeta_busq):
+                try:
+                    clave = str(p.resolve())
+                except Exception:
+                    clave = str(p)
+                if clave not in vistos:
+                    vistos.add(clave)
+                    archivos.append(p)
+        archivos.sort(key=lambda p: p.stat().st_mtime, reverse=True)
         items_lista: List[ft.Control] = []
         dlg_ref: Dict[str, Any] = {}
 
@@ -2263,6 +2448,7 @@ def main(page: ft.Page):
         guardar_perfil_electricista(perfil)
         refrescar_banner_calibracion()
         refrescar_validacion_rcd()
+        refrescar_destino_banner()
         page.update()
 
     btn_tema = ft.IconButton(
@@ -2327,6 +2513,7 @@ def main(page: ft.Page):
             [
                 chk_exp_pdf,
                 chk_exp_xlsx,
+                destino_banner,
                 ft.Row(
                     [
                         _Btn(
@@ -2390,6 +2577,7 @@ def main(page: ft.Page):
     refrescar_lista_pat()
     _cargar_borrador_en_campos()
     refrescar_lista_dif()
+    refrescar_destino_banner()
     if state["conclusiones"].get("conclusiones_texto") or state["conclusiones"].get("observaciones_datos"):
         txt_obs_datos.value = state["conclusiones"].get("observaciones_datos", "")
         txt_conclusiones.value = state["conclusiones"].get("conclusiones_texto", "")

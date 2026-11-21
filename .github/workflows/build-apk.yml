@@ -41,7 +41,9 @@ jobs:
         run: |
           flet build apk \
             --project AutoSRT \
-            --description "Aplicación para relevamiento SRT 900/15"
+            --product "AutoSRT 900/15" \
+            --description "Aplicación para relevamiento SRT 900/15" \
+            --android-permissions android.permission.READ_EXTERNAL_STORAGE=True android.permission.WRITE_EXTERNAL_STORAGE=True android.permission.MANAGE_EXTERNAL_STORAGE=True
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
