@@ -4,15 +4,21 @@ venv/
 env/
 .env
 
-# Archivos de caché de Python
+# Archivos de caché y build
 __pycache__/
 *.py[cod]
 *$py.class
+build/
 
-# Archivos generados (para no subir reportes de clientes a GitHub público)
+# Datos locales de la app y reportes generados (para no subir datos de clientes)
+.autosrt_data/
+salidas/
 Protocolo_SRT_Generado.xlsx
 *.xlsx
-!Mediciones 2026.xlsx  # Excepto la plantilla base que sí necesitamos subir
+*.pdf
+# Excepciones necesarias para la app y el APK (plantilla oficial y ejemplo anonimizado)
+!Mediciones 2026.xlsx
+!MEDICIONES_ORTOPEDIA_CUYO.xlsx
 
 # Streamlit
 .streamlit/
